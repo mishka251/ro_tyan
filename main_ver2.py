@@ -1,8 +1,12 @@
+from typing import Dict
+
 import numpy
 from matplotlib import pyplot, mlab
 import scipy.io.wavfile
 import os
 from collections import defaultdict
+
+from typing.io import TextIO
 
 SAMPLE_RATE = 44100  # Hz
 WINDOW_SIZE = 2048  # размер окна, в котором делается fft
@@ -34,7 +38,7 @@ def get_fingerprint(wave_data):
     return numpy.argmax(band.transpose(), 1)  # max в каждый момент времени
 
 
-def get_samples(samples_dir):
+def get_samples(samples_dir)->Dict:
     sample_files = os.listdir(samples_dir)
     sample_files = list(filter(lambda file: file.endswith('.wav'), sample_files))
     # print(sample_files)
@@ -66,24 +70,54 @@ def compare_fingerprints(base_fp, fp, title):
     pyplot.show()
 
 
-sample_files_dir = "sounds"
+def plot_match(matches, name1, name2):
+    pyplot.clf()
+    pyplot.hist(matches, 1000)
+    pyplot.title(name1+"-"+name2)
+    pyplot.show()
+
+
+def test_file(samples:Dict, test_file:str, test_name:str, log_file:TextIO):
+    file_data = get_wave_data(test_file)
+    test_fingerprint = get_fingerprint(file_data)
+    log_file.write("Testing "+test_name+"\n")
+    print("Testing " + test_name)
+    log_file.write("fingerprint\n")
+    log_file.write(str(test_fingerprint))
+    log_file.write("\n")
+    best_variant = ""
+    best_metric = 0
+    for k, v in samples.items():
+        match = get_fingerprint_match(v, test_fingerprint)
+        _max = max(match)
+        mid = sum(match) / len(match)
+        metric = _max / mid
+        log_file.write(f"{k}, {_max}, {mid}, {metric}\n")
+        plot_match(match, test_name, k)
+        if metric > best_metric:
+            best_metric = metric
+            best_variant = k
+    print("Its a " + best_variant)
+    log_file.write("Its a " + best_variant)
+
+
+def test(samples:Dict):
+    log: TextIO = open("log.txt", mode="w")
+    test_dirs = ["samples_1","samples_2", "sounds"]
+    for test_dir in test_dirs:
+        files = os.listdir(test_dir)
+        files = list(filter(lambda file: file.endswith('.wav'), files))
+        for file in files:
+            name, _ = file.split('.wav')
+            test_file(samples, test_dir+"/"+file, name, log)
+            print("\n")
+            log.write("\n\n")
+            pass
+        pass
+    log.close()
+    pass
+
+
+sample_files_dir = "samples_2"
 samples_fingerprints = get_samples(sample_files_dir)
-print(samples_fingerprints)
-
-test_file = "sounds/си.wav"
-file_data = get_wave_data(test_file)
-test_fingerprint = get_fingerprint(file_data)
-
-best_variant = ""
-best_metric = 0
-for k, v in samples_fingerprints.items():
-    match = get_fingerprint_match(v, test_fingerprint)
-    metric = max(match)
-    mid = sum(match)/len(match)
-    print(k, metric, mid, metric/mid)
-    if metric > best_metric:
-        best_metric = metric
-        best_variant = k
-    #compare_fingerprints(v, test_fingerprint, k)
-    #compare_fingerprints(test_fingerprint, v, k)
-print("Its a " + best_variant)
+test(samples_fingerprints)
